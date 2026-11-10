@@ -8,47 +8,59 @@
 </head><body><div class="w" id="w">⏳ กำลังโหลดข้อมูลปึก…</div>
 <!-- qr5: QR ปึกสำนวน → หน้านี้ดึงหน้าเว็บแอป ak13 แบบไม่ส่งคุกกี้/บัญชี Google (credentials:'omit')
      = มือถือที่ล็อกอิน Google เปิดได้ (เปิดลิงก์ script.google.com ตรง ๆ จะขึ้น "ไม่สามารถเปิดไฟล์ได้ในเวลานี้")
-     ?f=<รหัสปึก> · ?fs=<ตู้.ชั้น.ช่อง> · ?d=<รหัส deployment> (ไม่ใส่ = ตัวหลัก) -->
+     ?f=<รหัสปึก> · ?fs=<ตู้.ชั้น.ช่อง> · ?d=<รหัส deployment>
+  qr7 (10 พ.ย. 69): รหัส deployment ไม่ต้องแก้ในไฟล์นี้อีก —
+     • QR ที่พิมพ์ใหม่พก &d= มาเอง (main ใส่ให้จากสูตรเว็บแอปสด)
+     • QR เก่าที่ไม่มี &d= → ดึงไฟล์ d.txt (รหัสล่าสุด · deploy.ps1 อัปเดตให้เองเมื่อสร้าง deployment ใหม่)
+     • ดึง d.txt ไม่ได้ → ใช้ค่าสำรอง DEFAULT_D (ตัวหลักปัจจุบัน) -->
 <script>
 (function () {
-  var D = 'AKfycbyX-weNHesIKYV9M9t7OS4bqVba1P20mK5qo5xalSV9pgmauR_Kj_RQsoCVP-bZ__8f';
+  var DEFAULT_D = 'AKfycbyX-weNHesIKYV9M9t7OS4bqVba1P20mK5qo5xalSV9pgmauR_Kj_RQsoCVP-bZ__8f';
+  var RE = /^[A-Za-z0-9_-]{20,}$/;
   var q = new URLSearchParams(location.search), d = q.get('d');
-  if (d && /^[A-Za-z0-9_-]{20,}$/.test(d)) D = d;
-  var EXEC = 'https://script.google.com/macros/s/' + D + '/exec';
-  var k = q.has('fs') ? 'fs' : 'f', v = q.get(k) || '';
   var w = document.getElementById('w');
-  function fail(m) {
-    w.innerHTML = '⚠️ โหลดไม่ได้: ' + String(m).replace(/[<>&]/g, '') +
-      '<br><br><a href="' + location.href.replace(/"/g, '') + '">ลองใหม่</a> · <a href="' + EXEC + '?' + k + '=' + encodeURIComponent(v) + '">เปิดแบบเดิม (แท็บไม่ระบุตัวตน)</a>';
-  }
-  /* google.script.run จำลอง → POST ไปเว็บแอป (ไม่ส่งคุกกี้) */
-  var SHIM = '(' + function (EXEC) {
-    function mk(ok, ng) {
-      var o = {
-        withSuccessHandler: function (f) { return mk(f, ng); },
-        withFailureHandler: function (f) { return mk(ok, f); }
-      };
-      ['ak13FrView', 'ak13FrAct', 'ak13FrCheck'].forEach(function (fn) {
-        o[fn] = function () {
-          var args = Array.prototype.slice.call(arguments);
-          fetch(EXEC, { method: 'POST', credentials: 'omit', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args }) })
-            .then(function (r) { return r.json(); })
-            .then(function (x) { if (x && x.ok) { if (ok) ok(x.r); } else throw new Error(x && x.err || 'ผิดพลาด'); })
-            .catch(function (e) { if (ng) ng(e instanceof Error ? e : new Error(String(e))); });
-        };
-      });
-      return o;
+  function go(D) {
+    var EXEC = 'https://script.google.com/macros/s/' + D + '/exec';
+    var k = q.has('fs') ? 'fs' : 'f', v = q.get(k) || '';
+    function fail(m) {
+      w.innerHTML = '⚠️ โหลดไม่ได้: ' + String(m).replace(/[<>&]/g, '') +
+        '<br><br><a href="' + location.href.replace(/"/g, '') + '">ลองใหม่</a> · <a href="' + EXEC + '?' + k + '=' + encodeURIComponent(v) + '">เปิดแบบเดิม (แท็บไม่ระบุตัวตน)</a>';
     }
-    window.google = { script: { run: mk(null, null) } };
-  }.toString() + ')(' + JSON.stringify(EXEC) + ');';
-  fetch(EXEC + '?' + k + '=' + encodeURIComponent(v) + '&j=1', { credentials: 'omit', redirect: 'follow' })
-    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-    .then(function (o) {
-      if (!o || o.err || !o.html) throw new Error(o && o.err || 'ไม่มีข้อมูล');
-      var h = o.html.replace('<div id="app">', '<script>' + SHIM + '<\/script><div id="app">');
-      document.open(); document.write(h); document.close();
-    })
-    .catch(function (e) { fail(e && e.message || e); });
+    /* google.script.run จำลอง → POST ไปเว็บแอป (ไม่ส่งคุกกี้) */
+    var SHIM = '(' + function (EXEC) {
+      function mk(ok, ng) {
+        var o = {
+          withSuccessHandler: function (f) { return mk(f, ng); },
+          withFailureHandler: function (f) { return mk(ok, f); }
+        };
+        ['ak13FrView', 'ak13FrAct', 'ak13FrCheck'].forEach(function (fn) {
+          o[fn] = function () {
+            var args = Array.prototype.slice.call(arguments);
+            fetch(EXEC, { method: 'POST', credentials: 'omit', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args }) })
+              .then(function (r) { return r.json(); })
+              .then(function (x) { if (x && x.ok) { if (ok) ok(x.r); } else throw new Error(x && x.err || 'ผิดพลาด'); })
+              .catch(function (e) { if (ng) ng(e instanceof Error ? e : new Error(String(e))); });
+          };
+        });
+        return o;
+      }
+      window.google = { script: { run: mk(null, null) } };
+    }.toString() + ')(' + JSON.stringify(EXEC) + ');';
+    fetch(EXEC + '?' + k + '=' + encodeURIComponent(v) + '&j=1', { credentials: 'omit', redirect: 'follow' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (o) {
+        if (!o || o.err || !o.html) throw new Error(o && o.err || 'ไม่มีข้อมูล');
+        var h = o.html.replace('<div id="app">', '<script>' + SHIM + '<\/script><div id="app">');
+        document.open(); document.write(h); document.close();
+      })
+      .catch(function (e) { fail(e && e.message || e); });
+  }
+  if (d && RE.test(d)) { go(d); return; }                     /* QR ใหม่พก &d= มาเอง */
+  /* QR เก่า (ไม่มี &d=) → ถามรหัสล่าสุดจาก d.txt บนหน้าคั่น · ไม่ได้ = ค่าสำรอง */
+  fetch('d.txt?' + Date.now(), { cache: 'no-store' })
+    .then(function (r) { return r.ok ? r.text() : ''; })
+    .then(function (t) { t = String(t || '').trim(); go(RE.test(t) ? t : DEFAULT_D); })
+    .catch(function () { go(DEFAULT_D); });
 })();
 </script>
 </body></html>
