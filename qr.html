@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="th"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex,nofollow">
+<title>🗄 ปึกสำนวน</title>
+<style>body{font-family:Sarabun,Tahoma,sans-serif;margin:0;background:#f7f5ef;color:#222}.w{padding:40px 16px;text-align:center;color:#7a6a40;font-size:17px}a{color:#0b5394}</style>
+</head><body><div class="w" id="w">⏳ กำลังโหลดข้อมูลปึก…</div>
+<!-- qr5: QR ปึกสำนวน → หน้านี้ดึงหน้าเว็บแอป ak13 แบบไม่ส่งคุกกี้/บัญชี Google (credentials:'omit')
+     = มือถือที่ล็อกอิน Google เปิดได้ (เปิดลิงก์ script.google.com ตรง ๆ จะขึ้น "ไม่สามารถเปิดไฟล์ได้ในเวลานี้")
+     ?f=<รหัสปึก> · ?fs=<ตู้.ชั้น.ช่อง> · ?d=<รหัส deployment> (ไม่ใส่ = ตัวหลัก) -->
+<script>
+(function () {
+  var D = 'AKfycbyX-weNHesIKYV9M9t7OS4bqVba1P20mK5qo5xalSV9pgmauR_Kj_RQsoCVP-bZ__8f';
+  var q = new URLSearchParams(location.search), d = q.get('d');
+  if (d && /^[A-Za-z0-9_-]{20,}$/.test(d)) D = d;
+  var EXEC = 'https://script.google.com/macros/s/' + D + '/exec';
+  var k = q.has('fs') ? 'fs' : 'f', v = q.get(k) || '';
+  var w = document.getElementById('w');
+  function fail(m) {
+    w.innerHTML = '⚠️ โหลดไม่ได้: ' + String(m).replace(/[<>&]/g, '') +
+      '<br><br><a href="' + location.href.replace(/"/g, '') + '">ลองใหม่</a> · <a href="' + EXEC + '?' + k + '=' + encodeURIComponent(v) + '">เปิดแบบเดิม (แท็บไม่ระบุตัวตน)</a>';
+  }
+  /* google.script.run จำลอง → POST ไปเว็บแอป (ไม่ส่งคุกกี้) */
+  var SHIM = '(' + function (EXEC) {
+    function mk(ok, ng) {
+      var o = {
+        withSuccessHandler: function (f) { return mk(f, ng); },
+        withFailureHandler: function (f) { return mk(ok, f); }
+      };
+      ['ak13FrView', 'ak13FrAct', 'ak13FrCheck'].forEach(function (fn) {
+        o[fn] = function () {
+          var args = Array.prototype.slice.call(arguments);
+          fetch(EXEC, { method: 'POST', credentials: 'omit', redirect: 'follow', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn: fn, args: args }) })
+            .then(function (r) { return r.json(); })
+            .then(function (x) { if (x && x.ok) { if (ok) ok(x.r); } else throw new Error(x && x.err || 'ผิดพลาด'); })
+            .catch(function (e) { if (ng) ng(e instanceof Error ? e : new Error(String(e))); });
+        };
+      });
+      return o;
+    }
+    window.google = { script: { run: mk(null, null) } };
+  }.toString() + ')(' + JSON.stringify(EXEC) + ');';
+  fetch(EXEC + '?' + k + '=' + encodeURIComponent(v) + '&j=1', { credentials: 'omit', redirect: 'follow' })
+    .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(function (o) {
+      if (!o || o.err || !o.html) throw new Error(o && o.err || 'ไม่มีข้อมูล');
+      var h = o.html.replace('<div id="app">', '<script>' + SHIM + '<\/script><div id="app">');
+      document.open(); document.write(h); document.close();
+    })
+    .catch(function (e) { fail(e && e.message || e); });
+})();
+</script>
+</body></html>
