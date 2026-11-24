@@ -1,0 +1,42 @@
+# CaseMgr remind — แจ้งเตือนครบกำหนดผ่าน LINE ให้ออก 08:00 ไทย (rb1 · 24 พ.ย. 69 · ดู casemgr-live claude/CaseMgr_status_24nov_rb1.md)
+#   ทำไม: wbRemindRun เดิมอยู่ใน x2Tick ถูกโควตา Apps Script ตัดจนส่งบ่าย–ค่ำ · ตัวนี้ยิง doPost action=remind (ไม่นับโควตาทริกเกอร์)
+#   ไฟล์นี้มีแค่ curl + secrets ไม่มีข้อมูลคดี · ใช้ secrets ชุดเดียวกับ tick-backup (TICK_URL / TICK_TOKEN)
+#   เรียกซ้ำกี่ครั้งก็ไม่ส่งซ้ำ (แท็บ _แจ้งเตือนส่งแล้ว กันซ้ำ) → ตั้ง cron 2 รอบกัน GitHub เลื่อน/ข้าม
+name: CaseMgr remind 08:00
+on:
+  schedule:
+    - cron: '17 0 * * *'   # 07:17 ไทย (รอจน 08:00 ก่อนยิง)
+    - cron: '47 0 * * *'   # 07:47 ไทย (สำรอง)
+  workflow_dispatch:
+    inputs:
+      now:
+        description: 'ส่งทันที ไม่รอ 08:00 (1 = ใช่)'
+        default: '0'
+concurrency:
+  group: remind
+  cancel-in-progress: false
+permissions: {}
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: รอ 08:00 ไทย แล้วเรียกแจ้งเตือน
+        env:
+          TICK_URL: ${{ secrets.TICK_URL }}
+          TICK_TOKEN: ${{ secrets.TICK_TOKEN }}
+          NOW: ${{ github.event.inputs.now || '0' }}
+        run: |
+          if [ -z "$TICK_URL" ] || [ -z "$TICK_TOKEN" ]; then echo "ยังไม่ตั้ง secrets TICK_URL / TICK_TOKEN — ข้าม"; exit 0; fi
+          if [ "$NOW" != "1" ]; then
+            cur=$(( 10#$(TZ=Asia/Bangkok date +%H) * 3600 + 10#$(TZ=Asia/Bangkok date +%M) * 60 + 10#$(TZ=Asia/Bangkok date +%S) ))
+            if [ "$cur" -lt 28800 ] && [ $((28800 - cur)) -le 3000 ]; then echo "รอ $((28800 - cur)) วินาที ถึง 08:00 ไทย"; sleep $((28800 - cur)); fi
+          fi
+          BODY=$(printf '{"action":"remind","token":"%s"}' "$TICK_TOKEN")
+          for i in 1 2 3; do
+            RES=$(curl -sS -L --max-time 300 -H 'Content-Type: application/json' -d "$BODY" "$TICK_URL") || RES=""
+            echo "$RES" | head -c 600; echo
+            if echo "$RES" | grep -q '"ok":true'; then exit 0; fi
+            sleep 30
+          done
+          echo "::error::เว็บแอปไม่ตอบ ok 3 ครั้ง (โทเค็นผิด? ยังไม่ deploy รุ่นที่มี rb1? ดู ℹ️ ในชีท)"; exit 1
