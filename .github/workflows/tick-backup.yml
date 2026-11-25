@@ -1,40 +1,22 @@
-# CaseMgr tick (ย้ายมาจาก enterkkcp-ai-pokklong/casemgr-live เมื่อ 17 พ.ย. 69 — ดู claude/CaseMgr_handoff_17nov_arch2.md ข้อ P1)
-#   เหตุผลที่ย้าย: รีโปนี้เป็นสาธารณะ (GitHub Pages launcher) → นาทีรัน Actions ฟรีไม่จำกัด ต่างจาก casemgr-live (private) ที่มีเพดานฟรีรายเดือน
-#   ไฟล์นี้มีแค่ curl + secrets ไม่มีโค้ด/ข้อมูลคดีของระบบเลย — ยิง x2Tick ผ่านเว็บแอปของโปรเจกต์ main (CaseMgr-live) ทุก 15 นาที
-#   ตั้งครั้งเดียวที่รีโปนี้ (ไม่ใช่ casemgr-live อีกต่อไป): GitHub › Settings › Secrets and variables › Actions
-#     TICK_URL   = URL เว็บแอปของ main (Apps Script › Deploy › New deployment › Web app · Execute as: Me · Who has access: Anyone) ลงท้าย /exec
-#     TICK_TOKEN = โทเค็นจากเมนูในชีท ☰ › 🛠 ซ่อม·ตั้งค่า › 🔒 ล็อก·สำรอง › ⏰ ตัวขับสำรอง GitHub (tick)
-#   ไม่ตั้ง secrets = ข้ามเงียบ ๆ (ไม่แดง) · ตั้งแล้วแต่ตอบผิด/โทเค็นผิด = workflow แดง → GitHub ส่งอีเมลแจ้ง
-#   โทเค็นอยู่ในเนื้อหา POST (ไม่อยู่ใน URL) · stale default = 0 (ทำเสมอทุกรอบ cron — เป็นตัวขับหลักร่วมกับแผง 🛟 sb1 ไม่ใช่ตัวสำรองเฉย ๆ แล้ว
-#     x2Tick เองมีเช็ค due_ ต่อประเภทงานอยู่แล้วว่าถึงรอบจริงหรือยัง ไม่ต้องกันซ้ำที่ชั้นนี้อีกชั้น) · ใส่ stale เองได้ตอนสั่งมือ (workflow_dispatch) ถ้าต้องการ
-#   หมายเหตุ GitHub: ตั้งเวลา (cron) หยุดเองหากรีโปไม่มีกิจกรรม 60 วัน และอาจช้า/ข้ามรอบช่วงโหลดสูง — คู่กับ CLOCK ของ x2Tick เอง (หมาเฝ้า TK2_PRIMARY) กันพังถ้า cron นี้เงียบจริง ๆ
-name: CaseMgr tick
+name: CaseMgr tick backup (tk1)
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    - cron: '*/55 * * * *'
   workflow_dispatch:
-    inputs:
-      stale:
-        description: 'ข้ามถ้า x2Tick ปกติทำงานภายใน N นาที (0 = ทำเสมอ)'
-        default: '0'
-concurrency:
-  group: tick
-  cancel-in-progress: false
-permissions: {}
+
 jobs:
   tick:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 2
     steps:
-      - name: เรียก x2Tick ผ่านเว็บแอป
+      - name: Send tick to GAS
         env:
-          TICK_URL: ${{ secrets.TICK_URL }}
           TICK_TOKEN: ${{ secrets.TICK_TOKEN }}
-          STALE: ${{ github.event.inputs.stale || '0' }}
+          TICK_URL: ${{ secrets.TICK_URL }}
         run: |
-          if [ -z "$TICK_URL" ] || [ -z "$TICK_TOKEN" ]; then echo "ยังไม่ตั้ง secrets TICK_URL / TICK_TOKEN — ข้าม (ไม่ใช่ข้อผิดพลาด)"; exit 0; fi
-          BODY=$(printf '{"action":"tick","token":"%s","stale":%s}' "$TICK_TOKEN" "$STALE")
-          # Apps Script ตอบ POST ด้วย 302 → curl -L เปลี่ยนเป็น GET ไปรับผลให้เอง (ห้ามบังคับเมธอดด้วยตัวเลือก -X เพราะจะส่ง POST ซ้ำไปที่ปลายทางรับผล)
-          RES=$(curl -sS -L --max-time 420 -H 'Content-Type: application/json' -d "$BODY" "$TICK_URL") || { echo "เรียกเว็บแอปไม่สำเร็จ"; exit 1; }
-          echo "$RES" | head -c 600; echo
-          echo "$RES" | grep -q '"ok":true' || { echo "::error::เว็บแอปไม่ตอบ ok (โทเค็นผิด? ยังไม่ได้ deploy รุ่นที่มี tk1? ดู ℹ️ ในชีท)"; exit 1; }
+          if [ -z "$TICK_TOKEN" ] || [ -z "$TICK_URL" ]; then
+            echo "TICK_TOKEN หรือ TICK_URL ยังไม่ตั้ง — ข้าม"
+            exit 0
+          fi
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "${TICK_URL}?action=tick&token=${TICK_TOKEN}")
+          echo "HTTP status: $STATUS"
